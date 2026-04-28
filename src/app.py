@@ -5,7 +5,8 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
@@ -18,6 +19,23 @@ app = FastAPI(title="Mergington High School API",
 current_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
           "static")), name="static")
+
+ADMIN_USERNAME = "teacher"
+ADMIN_PASSWORD = "password"
+ADMIN_TOKEN = "MERGINGTON_ADMIN_TOKEN"
+
+
+def verify_admin(auth_token: Optional[str] = Header(None)):
+    if auth_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+
+@app.post("/login")
+def login(username: str, password: str):
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        return {"admin_token": ADMIN_TOKEN}
+    raise HTTPException(status_code=401, detail="Invalid username or password")
+
 
 # In-memory activity database
 activities = {
@@ -89,8 +107,10 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
+def signup_for_activity(activity_name: str, email: str, x_admin_token: Optional[str] = Header(None)):
     """Sign up a student for an activity"""
+    verify_admin(x_admin_token)
+
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -111,8 +131,9 @@ def signup_for_activity(activity_name: str, email: str):
 
 
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
+def unregister_from_activity(activity_name: str, email: str, x_admin_token: Optional[str] = Header(None)):
     """Unregister a student from an activity"""
+    verify_admin(x_admin_token)
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
